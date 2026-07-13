@@ -37,9 +37,8 @@ STATUS_待处理 = "待处理"
 STATUS_已确认 = "✅ 已确认"
 STATUS_未确认 = "❌ 未确认"
 
-# 巡检目标状态（默认只查"待处理"，避免单次运行无限循环）
-# 加 --include-unconfirmed 后同时查 "待处理" 和 "❌ 未确认"
-TARGET_STATUSES_DEFAULT = {STATUS_待处理}
+# 巡检目标状态（默认同时查"待处理"和"❌ 未确认"，避免遗漏法务期间已处理但未更新的群）
+TARGET_STATUSES_DEFAULT = {STATUS_待处理, STATUS_未确认}
 
 # API 限制
 PAGE_SIZE = 5   # 严格限制（需求规定）
