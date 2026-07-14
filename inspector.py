@@ -16,6 +16,7 @@ Phase 3: 循环续跑，直到 Bitable 无待处理/未确认记录
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -144,7 +145,8 @@ def bitable_list(filter_json=None, limit=200):
         f'--format json'
     )
     if filter_json:
-        cmd += f" --filter-json '{json.dumps(filter_json, ensure_ascii=False)}'"
+        filter_str = json.dumps(filter_json, ensure_ascii=False)
+        cmd += f" --filter-json '{filter_str}'"
     output = run(cmd, timeout=30)
     raw = extract_json(output)
     return raw.get("data", {})  # 直接返回 data 子对象
@@ -152,28 +154,32 @@ def bitable_list(filter_json=None, limit=200):
 
 def bitable_create(fields: dict) -> str:
     """创建 Bitable 记录，返回 record_id。"""
+    json_str = json.dumps(fields, ensure_ascii=False)
     output = run(
         f'lark-cli base +record-upsert --as user '
         f'--base-token {BASE_TOKEN} '
         f'--table-id {TABLE_ID} '
-        f"--json '{json.dumps(fields, ensure_ascii=False)}'",
+        f'--json {shlex.quote(json_str)}',
         timeout=15
     )
     data = extract_json(output)
-    rids = data.get("data", {}).get("record_id_list", [])
+    record = data.get("data", {}).get("record", {})
+    rids = record.get("record_id_list", [])
     return rids[0] if rids else ""
 
 
 def bitable_update(record_id: str, fields: dict):
     """更新 Bitable 记录。"""
-    run(
+    json_str = json.dumps(fields, ensure_ascii=False)
+    cmd = (
         f'lark-cli base +record-upsert --as user '
         f'--base-token {BASE_TOKEN} '
         f'--table-id {TABLE_ID} '
         f'--record-id {record_id} '
-        f"--json '{json.dumps(fields, ensure_ascii=False)}'",
-        timeout=15
+        f'--json {shlex.quote(json_str)}'
     )
+    output = run(cmd, timeout=15)
+    return output
 
 
 def parse_records(body: dict) -> list[dict]:
@@ -265,11 +271,12 @@ def invite_bot_to_group(chat_id: str, bot_app_id: str = None) -> bool:
     
     # 机器人不在群内，尝试拉入
     try:
+        data_json = json.dumps({"id_list": [bot_app_id]})
         result = run(
             f'lark-cli im chat.members create --as user '
             f'--chat-id {chat_id} '
             f'--member-id-type app_id '
-            f'--data \'{{"id_list":["{bot_app_id}"]}}\' '
+            f"--data '{data_json}' "
             f'--succeed-type 1',
             timeout=15
         )
