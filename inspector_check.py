@@ -134,16 +134,12 @@ def phase2_3(target_statuses=None):
 
 
 if __name__ == "__main__":
-    include_unconfirmed = "--include-unconfirmed" in sys.argv
-
     print(f"  协商群巡检器 v2.0")
     print(f"  启动: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     detect_user()
 
-    targets = {STATUS_待处理}
-    if include_unconfirmed:
-        targets.add(STATUS_未确认)
-        print(f"  模式: 包含 ❌ 未确认")
+    targets = {STATUS_待处理, STATUS_未确认}
+    print(f"  模式: 待处理 + ❌ 未确认")
     print()
 
     phase2_3(target_statuses=targets)
