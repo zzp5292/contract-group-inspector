@@ -30,6 +30,10 @@ TABLE_ID = "tblR1Ye2FEInH1IL"
 FIELD_群名 = "fldJZimG6U"         # 群名 (文本)
 FIELD_chat_id = "fld40aawF0"      # chat_id (文本)
 FIELD_法务确认 = "fldaNcfZss"    # 法务确认状态 (状态/单选)
+FIELD_已拉机器人 = "fldViXp38L"   # 是否已拉机器人 (复选框)
+
+# 新群自动邀请的机器人 App ID（设为 None 不邀请）
+BOT_APP_ID = "cli_a8e50c6e3c7f900b"  # legal助手
 
 # Bitable 选项值（带空格，与字段定义完全一致）
 # Bitable 选项值
@@ -47,14 +51,35 @@ PAGE_SIZE = 5   # 严格限制（需求规定）
 USER_OPEN_ID = None
 USER_NAME = None
 
-# 确认关键词
-CONFIRM_KEYWORDS = [
-    "没问题", "没有问题了", "无异议", "暂无意见",
-    "已确认", "法务已确认", "确认",
-    "可以", "同意", "可以推进",
-    "无修改意见", "没有意见",
-    "我这边没问题", "法务这边没问题",
-    "没有问题", "无问题", "通过",
+# 确认关键词（用于正则匹配，匹配到句子结尾才算）
+# 注意：顺序从精确到宽泛，避免短词优先匹配
+CONFIRM_PATTERNS = [
+    # 法务侧/法务 开头
+    r"法务侧?[都这]?边?没有问题了?[哈哦]?$",
+    r"法务侧?[都这]?边?没问题了?[哈哦]?$",
+    r"法务侧?[都这]?边?已确认$",
+    r"法务侧?[都这]?边?无异议$",
+    r"法务侧?[都这]?边?暂?无[修改]?意见$",
+    r"法务没有问题[了]?$",
+    r"法务没问题[了]?[哈哦]?$",
+    r"法务已确认$",
+    # 我这边/我这 开头
+    r"我[这]?边没问题了?[哈哦]?$",
+    r"我[这]?边没有问题了?[哈哦]?$",
+    r"我[这]?边已确认$",
+    # 通用确认
+    r"没有问题[了]?$",
+    r"没问题[了]?[哈哦]?$",
+    r"没有问题了[哈哦]?$",
+    r"无异议$",
+    r"暂无意见$",
+    r"已确认$",
+    r"确认$",
+    r"无修改意见$",
+    r"没有意见$",
+    r"可以推进$",
+    r"同意$",
+    r"通过$",
 ]
 
 # ═══════════════════════════════════════════════════════════
@@ -168,6 +193,7 @@ def parse_records(body: dict) -> list[dict]:
     name_idx = idx_map.get(FIELD_群名, 0)
     chat_idx = idx_map.get(FIELD_chat_id, -1)
     status_idx = idx_map.get(FIELD_法务确认, len(field_ids) - 1)
+    bot_idx = idx_map.get(FIELD_已拉机器人, -1)
 
     result = []
     for i, rec in enumerate(records_data):
@@ -192,11 +218,16 @@ def parse_records(body: dict) -> list[dict]:
 
         rid = record_ids[i] if i < len(record_ids) else ""
 
+        bot_invited = False
+        if bot_idx >= 0 and bot_idx < len(rec):
+            bot_invited = bool(rec[bot_idx])
+
         result.append({
             "record_id": rid,
             "group_name": group_name,
             "chat_id": chat_id,
             "status": status,
+            "bot_invited": bot_invited,
         })
     return result
 
@@ -212,8 +243,33 @@ def get_user_messages(chat_id: str, page_size: int = 50) -> list[dict]:
     return data.get("data", {}).get("messages", [])
 
 
+def invite_bot_to_group(chat_id: str, bot_app_id: str = None) -> bool:
+    """邀请机器人进群。返回是否成功。"""
+    if not bot_app_id:
+        return False
+    try:
+        result = run(
+            f'lark-cli im chat.members create --as user '
+            f'--chat-id {chat_id} '
+            f'--member-id-type app_id '
+            f'--data \'{{"id_list":["{bot_app_id}"]}}\' '
+            f'--succeed-type 1',
+            timeout=15
+        )
+        data = extract_json(result)
+        invalid = data.get("data", {}).get("invalid_id_list", [])
+        return bot_app_id not in invalid
+    except Exception:
+        return False
+
+
 def has_user_confirmed(messages: list[dict]) -> tuple[bool, str]:
-    """语义分析：当前用户是否已确认。返回 (是否确认, 匹配片段)。"""
+    """语义分析：当前用户是否已确认。
+    
+    把消息按句号/感叹号/问号/换行拆成句子，
+    对每个句子做正则匹配（匹配到句子结尾），
+    避免"没问题了还有问题"这类误判。
+    """
     for msg in messages:
         sender = msg.get("sender", {})
         if sender.get("sender_type") != "user":
@@ -227,9 +283,16 @@ def has_user_confirmed(messages: list[dict]) -> tuple[bool, str]:
         content = msg.get("content", "")
         if not isinstance(content, str) or not content:
             continue
-        for kw in CONFIRM_KEYWORDS:
-            if kw in content:
-                return True, content[:200]
+        
+        # 按标点符号拆成句子
+        sentences = re.split(r"[。！？\n\r]+", content)
+        for s in sentences:
+            s = s.strip()
+            if not s:
+                continue
+            for pattern in CONFIRM_PATTERNS:
+                if re.search(pattern, s):
+                    return True, s[:200]
     return False, ""
 
 
@@ -292,19 +355,45 @@ def phase1() -> int:
                 print(f"  ⏭️  跳过(已存在): {name}")
                 continue
 
-            bitable_create({
+            rid = bitable_create({
                 "群名": name,
                 "chat_id": chat_id,
                 "法务确认状态": STATUS_待处理,
+                "是否已拉机器人": True if not BOT_APP_ID else False,
             })
             existing_names.add(name)
             total_new += 1
             print(f"  ✅ 新增: {name}  (chat_id={chat_id[:20]}...)")
 
+            # 自动邀请机器人进群
+            if BOT_APP_ID:
+                print(f"  🔄 正在邀请机器人 {BOT_APP_ID[:20]}... 进群...")
+                if invite_bot_to_group(chat_id, BOT_APP_ID):
+                    bitable_update(rid, {"是否已拉机器人": True})
+                    print(f"  ✅ 机器人已拉入群")
+                else:
+                    print(f"  ⚠️  拉机器人失败")
+
         if not has_more:
             print(f"\n  ✅ 所有群已同步完毕")
 
     print(f"\n  Phase 1 完成: 发现 {total_found} 个协商群, 新增 {total_new} 条")
+
+    # 补拉：处理之前已有的、还没拉过机器人的群
+    if BOT_APP_ID:
+        print(f"\n  --- 补拉机器人到已有群 ---")
+        body = bitable_list(limit=200)
+        all_records = parse_records(body)
+        pending = [r for r in all_records if not r["bot_invited"] and r["chat_id"]]
+        print(f"  需要补拉: {len(pending)} 个群")
+        for r in pending:
+            print(f"  🔄 {r['group_name']}...", end=" ")
+            if invite_bot_to_group(r["chat_id"], BOT_APP_ID):
+                bitable_update(r["record_id"], {"是否已拉机器人": True})
+                print("✅")
+            else:
+                print("❌")
+
     return total_new
 
 
