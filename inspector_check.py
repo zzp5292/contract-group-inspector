@@ -16,7 +16,7 @@ PHASE = "巡检"
 
 
 def phase2_3(target_statuses=None):
-    """分批巡检循环，直到所有待处理/未确认群处理完毕。"""
+    """查 Bitable → 读消息 → 关键词匹配 → 更新状态。一次拉完所有待处理记录，分批处理。"""
     if target_statuses is None:
         target_statuses = {STATUS_待处理, STATUS_未确认}
 
@@ -29,50 +29,44 @@ def phase2_3(target_statuses=None):
         filter_json["logic"] = "or"
 
     print("=" * 60)
-    print(f"  {PHASE}: 分批巡检与断点续跑")
+    print(f"  {PHASE}: 分批巡检")
     print("=" * 60)
 
-    round_num = 0
+    # ── Step 1: 一次拉取所有待处理/未确认记录 ──
+    try:
+        body = bitable_list(filter_json=filter_json, limit=200)
+        all_records = parse_records(body)
+    except Exception as e:
+        print(f"  [ERROR] 查询失败: {e}")
+        return 0, 0, 0
+
+    all_records = [r for r in all_records if r["status"] in target_statuses]
+
+    if not all_records:
+        print(f"\n  ✅ 全部巡检完成！")
+        return 0, 0, 0
+
+    print(f"  共 {len(all_records)} 条待处理记录\n")
+
+    # ── Step 2: 分批处理 ──
+    batch_size = PAGE_SIZE  # 每批 5 个
     total_processed = 0
     total_confirmed = 0
     total_unconfirmed = 0
     confirmed_list = []
     unconfirmed_list = []
-    processed_ids = set()
 
-    while True:
-        round_num += 1
-        print(f"\n{'='*40}")
-        print(f"  巡检轮次 #{round_num} (page_size={PAGE_SIZE})")
+    for batch_start in range(0, len(all_records), batch_size):
+        batch = all_records[batch_start:batch_start + batch_size]
+        print(f"{'='*40}")
+        print(f"  批次 {batch_start//batch_size + 1}: {len(batch)} 个群")
         print(f"{'='*40}")
 
-        records = []
-        try:
-            body = bitable_list(filter_json=filter_json, limit=PAGE_SIZE)
-            records = parse_records(body)
-        except Exception as e:
-            print(f"  [WARN] 过滤查询异常: {e}")
-            try:
-                body = bitable_list(limit=PAGE_SIZE)
-                records = parse_records(body)
-            except Exception as e2:
-                print(f"  [ERROR] 降级查询也失败: {e2}")
-                break
-
-        records = [r for r in records if r["status"] in target_statuses]
-        records = [r for r in records if r["record_id"] not in processed_ids]
-
-        if not records:
-            print(f"\n  {'✅ ' if round_num == 1 else ''}全部巡检完成！")
-            break
-
-        print(f"  待处理记录: {len(records)} 个")
-
-        for i, rec in enumerate(records):
+        for i, rec in enumerate(batch):
             name = rec["group_name"]
             rid = rec["record_id"]
             chat_id = rec["chat_id"]
-            print(f"\n  [{i+1}/{len(records)}] {name}")
+            print(f"\n  [{i+1}/{len(batch)}] {name}")
 
             if not chat_id:
                 print(f"  ⚠️  chat_id 为空，标记为 {STATUS_未确认}")
@@ -83,7 +77,6 @@ def phase2_3(target_statuses=None):
                 total_processed += 1
                 total_unconfirmed += 1
                 unconfirmed_list.append(name)
-                processed_ids.add(rid)
                 continue
 
             try:
@@ -97,7 +90,6 @@ def phase2_3(target_statuses=None):
                 total_processed += 1
                 total_unconfirmed += 1
                 unconfirmed_list.append(name)
-                processed_ids.add(rid)
                 continue
 
             print(f"  最近 {len(messages)} 条消息")
@@ -120,9 +112,6 @@ def phase2_3(target_statuses=None):
                 print(f"  ➡️  已更新为 {new_status}")
             except Exception as e:
                 print(f"  ❌ 更新失败: {e}")
-            processed_ids.add(rid)
-
-        print(f"\n  本轮 {len(records)} 个群完成，继续下一轮...\n")
 
     # 汇总
     print("\n" + "=" * 60)

@@ -111,17 +111,40 @@ def detect_user():
 
 
 def bitable_list(filter_json=None, limit=200):
-    cmd = (
-        f'lark-cli base +record-list --as user '
-        f'--base-token {BASE_TOKEN} --table-id {TABLE_ID} '
-        f'--limit {limit} --format json'
-    )
-    if filter_json:
-        filter_str = json.dumps(filter_json, ensure_ascii=False)
-        cmd += f" --filter-json '{filter_str}'"
-    output = run(cmd, timeout=30)
-    raw = extract_json(output)
-    return raw.get("data", {})
+    """通用 Bitable 查询。自动翻页直到 has_more=false，合并返回所有记录。"""
+    page_token = None
+    all_data = None
+
+    while True:
+        cmd = (
+            f'lark-cli base +record-list --as user '
+            f'--base-token {BASE_TOKEN} --table-id {TABLE_ID} '
+            f'--limit {limit} --format json'
+        )
+        if filter_json:
+            filter_str = json.dumps(filter_json, ensure_ascii=False)
+            cmd += f" --filter-json '{filter_str}'"
+        if page_token:
+            cmd += f' --page-token "{page_token}"'
+
+        output = run(cmd, timeout=30)
+        raw = extract_json(output)
+        body = raw.get("data", {})
+
+        if all_data is None:
+            all_data = body
+        else:
+            # 合并数据
+            all_data["data"] = all_data.get("data", []) + body.get("data", [])
+            all_data["record_id_list"] = all_data.get("record_id_list", []) + body.get("record_id_list", [])
+
+        if not body.get("has_more", False):
+            break
+        page_token = body.get("page_token", "")
+        if not page_token:
+            break
+
+    return all_data or {}
 
 
 def bitable_create(fields):
