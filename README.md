@@ -1,42 +1,32 @@
-# 协商群巡检器 v2.0
+# 协商群巡检器
 
-三段式全自动巡检脚本，检查飞书中以"协商"开头的群聊的法务确认状态。
+## 文件说明
 
-## 环境要求
-
-- Python 3.8+
-- lark-cli（飞书命令行工具）
-
-## 安装 lark-cli
-
-```bash
-# macOS（推荐）
-brew install lark-cli
-
-# 或用 npm
-npm install -g @larksuite/cli
-```
-
-## 登录（第一次使用）
-
-```bash
-lark-cli auth login --domain im --no-wait
-# 用手机飞书扫码授权
-```
+| 文件 | 用途 | 运行方式 |
+|------|------|---------|
+| `inspector_sync.py` | 轮询用：发现新群 → 新增 Bitable → 拉机器人 | `python3 inspector_sync.py` |
+| `inspector_check.py` | 巡检用：查 Bitable → 读消息 → 判断确认状态 | `python3 inspector_check.py` |
+| `inspector_common.py` | 共享配置 + 工具函数 | 被上面两个脚本引用 |
 
 ## 使用
 
 ```bash
-# 完整运行（同步所有群 + 巡检）
-python3 inspector.py
+# 轮询（同步 + 拉机器人）
+python3 inspector_sync.py
 
-# 仅巡检（跳过群同步，适用于已有数据后）
-python3 inspector.py --skip-phase1
+# 巡检（只查待处理群）
+python3 inspector_check.py
 
-# 重新巡检已标记为"未确认"的群
-python3 inspector.py --skip-phase1 --include-unconfirmed
+# 巡检（也查已标记为未确认的群）
+python3 inspector_check.py --include-unconfirmed
 ```
 
-## 依赖说明
+## 定时任务
 
-本脚本仅使用 Python 标准库，无需 pip install 任何第三方包。
+```bash
+# crontab，每 10 分钟跑一次同步
+*/10 * * * * cd /path && python3 inspector_sync.py
+
+# 每天凌晨 2 点跑一次巡检
+0 2 * * * cd /path && python3 inspector_check.py --include-unconfirmed
+```
