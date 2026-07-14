@@ -41,13 +41,9 @@ LEGAL_WHITELIST = {
     "郑梦雪": None,  # None 表示仅按名称匹配，填 open_id 则精确匹配
 }
 
-# 版本指示关键词——检测到有人发了新版合同
-# 确认必须在此类消息之后才算
-VERSION_PATTERNS = [
-    r"版本\d*",
-    r"第\d+版",
-    r"[Vv]\d+",
-]
+# 版本检测：确认必须在一个文件消息之后才算
+# 合同通常以文件形式发送，检测 msg_type 比关键词更可靠
+CHECK_LAST_FILE = True  # True=确认须在最后一个文件之后；False=不检查文件
 
 # 确认关键词（正则匹配）
 CONFIRM_PATTERNS = [
@@ -266,25 +262,20 @@ def has_legal_confirmed(messages):
     """
     消息按时间降序排列（最新在前）。
     逻辑:
-    1. 找到最近一条含有"版本"关键词的消息的位置
-    2. 只检查在此消息之后（更新）的消息中，白名单法务人员的确认发言
-    3. 如果没有版本消息，则检查全部消息（保守处理）
+    1. 如果 CHECK_LAST_FILE=True，找到最近一条文件消息（msg_type=file）的位置
+    2. 只检查在此消息之后的消息中，白名单法务人员的确认发言
+    3. 如果没有文件消息，则检查全部消息
     """
-    # 找到最新的一条版本消息
-    newest_version_idx = -1
-    for i, msg in enumerate(messages):
-        content = msg.get("content", "")
-        if not isinstance(content, str):
-            continue
-        for pattern in VERSION_PATTERNS:
-            if re.search(pattern, content):
-                newest_version_idx = i
+    # 找到最新的一条文件消息
+    newest_file_idx = -1
+    if CHECK_LAST_FILE:
+        for i, msg in enumerate(messages):
+            if msg.get("msg_type") == "file":
+                newest_file_idx = i
                 break
-        if newest_version_idx >= 0:
-            break  # 找到了最近一条
 
-    # 只检查版本消息之后的（索引更小，更新）
-    scan_limit = newest_version_idx if newest_version_idx >= 0 else len(messages)
+    # 只检查文件消息之后的（索引更小，更新）
+    scan_limit = newest_file_idx if newest_file_idx >= 0 else len(messages)
 
     for i in range(scan_limit):
         msg = messages[i]
