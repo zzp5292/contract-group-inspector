@@ -92,9 +92,9 @@ def phase2_3(target_statuses=None):
                 unconfirmed_list.append(name)
                 continue
 
-            print(f"  最近 {len(messages)} 条消息")
+            print(f"  最近 {len(messages)} 条消息（法务白名单: {', '.join(LEGAL_WHITELIST.keys())}，确认须在最后版本之后）")
 
-            has_confirm, snippet = has_user_confirmed(messages)
+            has_confirm, snippet = has_legal_confirmed(messages)
             if has_confirm:
                 new_status = STATUS_已确认
                 total_confirmed += 1
