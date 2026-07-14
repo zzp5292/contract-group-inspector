@@ -35,6 +35,20 @@ PAGE_SIZE = 5
 USER_OPEN_ID = None
 USER_NAME = None
 
+# 法务人员白名单——只认这些人的确认发言
+# 格式: {"姓名": "open_id_or_None"}
+LEGAL_WHITELIST = {
+    "郑梦雪": None,  # None 表示仅按名称匹配，填 open_id 则精确匹配
+}
+
+# 版本指示关键词——检测到有人发了新版合同
+# 确认必须在此类消息之后才算
+VERSION_PATTERNS = [
+    r"版本\d*",
+    r"第\d+版",
+    r"[Vv]\d+",
+]
+
 # 确认关键词（正则匹配）
 CONFIRM_PATTERNS = [
     r"法务侧?[都这]?边?没有问题了?[哈哦]?$",
@@ -248,15 +262,50 @@ def invite_bot_to_group(chat_id, bot_app_id=None):
         return False
 
 
-def has_user_confirmed(messages):
-    for msg in messages:
+def has_legal_confirmed(messages):
+    """
+    消息按时间降序排列（最新在前）。
+    逻辑:
+    1. 找到最近一条含有"版本"关键词的消息的位置
+    2. 只检查在此消息之后（更新）的消息中，白名单法务人员的确认发言
+    3. 如果没有版本消息，则检查全部消息（保守处理）
+    """
+    # 找到最新的一条版本消息
+    newest_version_idx = -1
+    for i, msg in enumerate(messages):
+        content = msg.get("content", "")
+        if not isinstance(content, str):
+            continue
+        for pattern in VERSION_PATTERNS:
+            if re.search(pattern, content):
+                newest_version_idx = i
+                break
+        if newest_version_idx >= 0:
+            break  # 找到了最近一条
+
+    # 只检查版本消息之后的（索引更小，更新）
+    scan_limit = newest_version_idx if newest_version_idx >= 0 else len(messages)
+
+    for i in range(scan_limit):
+        msg = messages[i]
         sender = msg.get("sender", {})
         if sender.get("sender_type") != "user":
             continue
-        if sender.get("id_type") != "open_id":
+        sender_name = sender.get("name", "")
+        sender_open_id = sender.get("id", "")
+
+        # 判断是否在白名单中
+        in_whitelist = False
+        for name, open_id in LEGAL_WHITELIST.items():
+            if open_id and sender_open_id == open_id:
+                in_whitelist = True
+                break
+            if not open_id and sender_name == name:
+                in_whitelist = True
+                break
+        if not in_whitelist:
             continue
-        if sender.get("id") != USER_OPEN_ID:
-            continue
+
         if msg.get("msg_type") != "text":
             continue
         content = msg.get("content", "")
