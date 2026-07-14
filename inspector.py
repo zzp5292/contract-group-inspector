@@ -244,9 +244,26 @@ def get_user_messages(chat_id: str, page_size: int = 50) -> list[dict]:
 
 
 def invite_bot_to_group(chat_id: str, bot_app_id: str = None) -> bool:
-    """邀请机器人进群。返回是否成功。"""
+    """邀请机器人进群。先检查是否已在群内，已在就不重复拉。返回是否成功。"""
     if not bot_app_id:
         return False
+    
+    # 先检查机器人是否已在群内
+    try:
+        output = run(
+            f'lark-cli im +chat-members-list --as user '
+            f'--chat-id {chat_id} --page-all --format json',
+            timeout=15
+        )
+        data = extract_json(output)
+        bots = data.get("data", {}).get("bots", [])
+        for b in bots:
+            if b.get("app_id") == bot_app_id:
+                return True  # 已在群内，算成功
+    except Exception:
+        pass  # 查失败就尝试直接拉
+    
+    # 机器人不在群内，尝试拉入
     try:
         result = run(
             f'lark-cli im chat.members create --as user '
