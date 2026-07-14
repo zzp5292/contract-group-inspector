@@ -6,6 +6,7 @@
 
 | 文件 | 用途 | 默认行为 |
 |------|------|---------|
+| `inspector_run.py` | **一键执行**：先 sync 后 check | 适合日常使用 |
 | `inspector_sync.py` | **同步脚本**：发现新群 → 新增 Bitable → 拉机器人 | 同时查待处理和未确认 |
 | `inspector_check.py` | **巡检脚本**：查 Bitable → 读消息 → 判断确认状态 | 同时查待处理和未确认 |
 | `inspector_common.py` | 共享配置 + 工具函数 | 被上面两个引用 |
@@ -28,9 +29,10 @@ npm install -g @larksuite/cli
 curl -O https://raw.githubusercontent.com/zzp5292/contract-group-inspector/main/inspector_common.py
 curl -O https://raw.githubusercontent.com/zzp5292/contract-group-inspector/main/inspector_sync.py
 curl -O https://raw.githubusercontent.com/zzp5292/contract-group-inspector/main/inspector_check.py
+curl -O https://raw.githubusercontent.com/zzp5292/contract-group-inspector/main/inspector_run.py
 ```
 
-三个文件必须在**同一个目录**下。
+四个文件必须在**同一个目录**下。
 
 ### 第三步：登录飞书（只需一次，7 天有效）
 
@@ -43,11 +45,12 @@ lark-cli auth login --domain im
 ### 第四步：运行
 
 ```bash
-# 同步（发现新群 + 拉机器人）
-python3 inspector_sync.py
+# 一键（先同步新群，再巡检确认状态）
+python3 inspector_run.py
 
-# 巡检（判断确认状态）
-python3 inspector_check.py
+# 或分开执行
+# python3 inspector_sync.py
+# python3 inspector_check.py
 ```
 
 ## 使用流程
@@ -106,6 +109,7 @@ lark-cli auth login --domain im
 curl -O https://raw.githubusercontent.com/zzp5292/contract-group-inspector/main/inspector_common.py
 curl -O https://raw.githubusercontent.com/zzp5292/contract-group-inspector/main/inspector_sync.py
 curl -O https://raw.githubusercontent.com/zzp5292/contract-group-inspector/main/inspector_check.py
+curl -O https://raw.githubusercontent.com/zzp5292/contract-group-inspector/main/inspector_run.py
 ```
 
 ## 配置说明
