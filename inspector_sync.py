@@ -46,7 +46,7 @@ def phase1():
             print(f"  [ERROR] 第 {page_num} 页: {e}")
             break
 
-        chats = body.get("chats", [])
+        chats = body.get("chats", []) or []
         has_more = body.get("has_more", False)
         page_token = body.get("page_token", "")
         print(f"\n  第 {page_num} 页: {len(chats)} 个群, has_more={has_more}")
@@ -74,6 +74,7 @@ def phase1():
                 "chat_id": chat_id,
                 "法务确认状态": STATUS_待处理,
                 "是否已拉机器人": False if BOT_APP_ID else True,
+                "用户": USER_NAME,
             })
             existing_names.add(name)
             existing_chat_ids.add(chat_id)
@@ -103,7 +104,7 @@ def phase1_retry():
     print(f"\n  --- 补拉机器人到已有群 ---")
     body = bitable_list(limit=200)
     all_records = parse_records(body)
-    pending = [r for r in all_records if not r["bot_invited"] and r["chat_id"]]
+    pending = [r for r in all_records if not r["bot_invited"] and r["chat_id"] and r["user"] == USER_NAME]
     if not pending:
         print(f"  无需补拉")
         return
@@ -126,6 +127,11 @@ if __name__ == "__main__":
     print(f"  协商群同步器 v1.0")
     print(f"  启动: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     detect_user()
+    # detect_user 设置的是 common 模块的全局变量，* import 不共享
+    # 重新从 common 模块获取最新值
+    import inspector_common as _c
+    globals()["USER_NAME"] = _c.USER_NAME
+    globals()["USER_OPEN_ID"] = _c.USER_OPEN_ID
     print()
 
     phase1()

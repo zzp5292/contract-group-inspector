@@ -82,14 +82,7 @@ def phase2_3(target_statuses=None):
             try:
                 messages = get_user_messages(chat_id)
             except Exception:
-                print(f"  ⏭️  不在群中，跳过")
-                try:
-                    bitable_update(rid, {"法务确认状态": STATUS_未确认})
-                except:
-                    pass
-                total_processed += 1
-                total_unconfirmed += 1
-                unconfirmed_list.append(name)
+                print(f"  ⏭️  不在群中，跳过（状态保持不变）")
                 continue
 
             print(f"  最近 {len(messages)} 条消息（法务白名单: {', '.join(LEGAL_WHITELIST.keys())}，确认须在最后版本之后）")

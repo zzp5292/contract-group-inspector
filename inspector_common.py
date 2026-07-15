@@ -19,6 +19,7 @@ FIELD_群名 = "fldJZimG6U"
 FIELD_chat_id = "fld40aawF0"
 FIELD_法务确认 = "fldaNcfZss"
 FIELD_已拉机器人 = "fldViXp38L"
+FIELD_用户 = "fldZn1JcEF"
 
 # Bitable 选项值
 STATUS_待处理 = "待处理"
@@ -122,20 +123,18 @@ def detect_user():
 
 def bitable_list(filter_json=None, limit=200):
     """通用 Bitable 查询。自动翻页直到 has_more=false，合并返回所有记录。"""
-    page_token = None
+    offset = 0
     all_data = None
 
     while True:
         cmd = (
             f'lark-cli base +record-list --as user '
             f'--base-token {BASE_TOKEN} --table-id {TABLE_ID} '
-            f'--limit {limit} --format json'
+            f'--limit {limit} --offset {offset} --format json'
         )
         if filter_json:
             filter_str = json.dumps(filter_json, ensure_ascii=False)
             cmd += f" --filter-json '{filter_str}'"
-        if page_token:
-            cmd += f' --page-token "{page_token}"'
 
         output = run(cmd, timeout=30)
         raw = extract_json(output)
@@ -144,15 +143,12 @@ def bitable_list(filter_json=None, limit=200):
         if all_data is None:
             all_data = body
         else:
-            # 合并数据
             all_data["data"] = all_data.get("data", []) + body.get("data", [])
             all_data["record_id_list"] = all_data.get("record_id_list", []) + body.get("record_id_list", [])
 
         if not body.get("has_more", False):
             break
-        page_token = body.get("page_token", "")
-        if not page_token:
-            break
+        offset += len(body.get("data", []))
 
     return all_data or {}
 
@@ -194,6 +190,7 @@ def parse_records(body):
     chat_idx = idx_map.get(FIELD_chat_id, -1)
     status_idx = idx_map.get(FIELD_法务确认, len(field_ids) - 1)
     bot_idx = idx_map.get(FIELD_已拉机器人, -1)
+    user_idx = idx_map.get(FIELD_用户, -1)
 
     result = []
     for i, rec in enumerate(records_data):
@@ -212,7 +209,10 @@ def parse_records(body):
         bot_invited = False
         if bot_idx >= 0 and bot_idx < len(rec):
             bot_invited = bool(rec[bot_idx])
-        result.append({"record_id": rid, "group_name": group_name, "chat_id": chat_id, "status": status, "bot_invited": bot_invited})
+        user_name = ""
+        if user_idx >= 0 and user_idx < len(rec) and rec[user_idx]:
+            user_name = str(rec[user_idx])
+        result.append({"record_id": rid, "group_name": group_name, "chat_id": chat_id, "status": status, "bot_invited": bot_invited, "user": user_name})
     return result
 
 
