@@ -23,9 +23,8 @@ def phase1():
 
     body = bitable_list(limit=200)
     existing = parse_records(body)
-    existing_names = {r["group_name"] for r in existing if r["group_name"]}
     existing_chat_ids = {r["chat_id"] for r in existing if r["chat_id"]}
-    print(f"  Bitable 已有: {len(existing_names)} 个群")
+    print(f"  Bitable 已有: {len(existing)} 个群")
 
     page_token = None
     has_more = True
@@ -57,7 +56,7 @@ def phase1():
                 continue
             total_found += 1
             chat_id = chat.get("chat_id", "")
-            if name in existing_names:
+            if chat_id in existing_chat_ids:
                 print(f"  ⏭️  跳过(已存在): {name}")
                 continue
 
@@ -76,7 +75,6 @@ def phase1():
                 "是否已拉机器人": False if BOT_APP_ID else True,
                 "用户": USER_NAME,
             })
-            existing_names.add(name)
             existing_chat_ids.add(chat_id)
             total_new += 1
             print(f"  ✅ 新增: {name}")
