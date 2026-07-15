@@ -29,7 +29,7 @@ def run_cmd(cmd, timeout=15):
 
 def send_bot_message(open_id, text):
     """用 lark-cli 的 bot 身份发私聊消息"""
-    cmd = ("lark-cli im +messages-send --as bot "
+    cmd = ("lark-cli im +messages-send --as user "
            "--user-id " + open_id + " "
            "--text " + shlex.quote(text))
     run_cmd(cmd, timeout=15)
