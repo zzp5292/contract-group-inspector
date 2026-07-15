@@ -81,8 +81,8 @@ def phase2_3(target_statuses=None):
 
             try:
                 messages = get_user_messages(chat_id)
-            except Exception as e:
-                print(f"  ⚠️  读取消息失败: {e}")
+            except Exception:
+                print(f"  ⏭️  不在群中，跳过")
                 try:
                     bitable_update(rid, {"法务确认状态": STATUS_未确认})
                 except:
