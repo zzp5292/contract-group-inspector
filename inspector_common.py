@@ -115,9 +115,9 @@ def extract_json(text):
 
 def detect_user():
     global USER_OPEN_ID, USER_NAME
-    output = run("lark-cli whoami", timeout=10)
+    output = run("lark-cli auth status", timeout=10)
     data = extract_json(output)
-    info = data.get("onBehalfOf", {})
+    info = data.get("identities", {}).get("user", {})
     USER_OPEN_ID = info.get("openId", "")
     USER_NAME = info.get("userName", "")
     if not USER_OPEN_ID:
