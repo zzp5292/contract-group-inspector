@@ -42,9 +42,13 @@ LEGAL_WHITELIST = {
     "郑梦雪": None,  # None 表示仅按名称匹配，填 open_id 则精确匹配
 }
 
-# 版本检测：确认必须在一个文件消息之后才算
-# 合同通常以文件形式发送，检测 msg_type 比关键词更可靠
-CHECK_LAST_FILE = True  # True=确认须在最后一个文件之后；False=不检查文件
+# 版本检测：确认必须在一个文件消息或机器人发送的合同卡片之后才算
+# 合同通常以文件形式发送，也可能是智书等机器人发送的飞书卡片
+CHECK_LAST_FILE = True  # True=确认须在最后一个版本之后；False=不检查版本
+
+# 发送新版合同的机器人名称列表（sender.name 匹配）
+# 这些机器人的消息被视为"新版合同"，确认须在其之后才算
+VERSION_BOT_NAMES = ["智书合同"]
 
 # 确认关键词（正则匹配）
 CONFIRM_PATTERNS = [
@@ -262,20 +266,26 @@ def has_legal_confirmed(messages):
     """
     消息按时间降序排列（最新在前）。
     逻辑:
-    1. 如果 CHECK_LAST_FILE=True，找到最近一条文件消息（msg_type=file）的位置
+    1. 如果 CHECK_LAST_FILE=True，找到最近一条"版本标记"的位置
+       - msg_type=file 的文件消息
+       - 或机器人发送的合同卡片（sender_type=bot 且名称在 VERSION_BOT_NAMES 中）
     2. 只检查在此消息之后的消息中，白名单法务人员的确认发言
-    3. 如果没有文件消息，则检查全部消息
+    3. 如果没有版本标记，则检查全部消息
     """
-    # 找到最新的一条文件消息
-    newest_file_idx = -1
+    # 找到最新的一条版本标记（文件消息或机器人合同卡片）
+    newest_version_idx = -1
     if CHECK_LAST_FILE:
         for i, msg in enumerate(messages):
             if msg.get("msg_type") == "file":
-                newest_file_idx = i
+                newest_version_idx = i
+                break
+            sender = msg.get("sender", {})
+            if sender.get("sender_type") == "bot" and sender.get("name") in VERSION_BOT_NAMES:
+                newest_version_idx = i
                 break
 
-    # 只检查文件消息之后的（索引更小，更新）
-    scan_limit = newest_file_idx if newest_file_idx >= 0 else len(messages)
+    # 只检查版本标记之后的（索引更小，更新）
+    scan_limit = newest_version_idx if newest_version_idx >= 0 else len(messages)
 
     for i in range(scan_limit):
         msg = messages[i]
