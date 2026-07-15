@@ -61,6 +61,13 @@ def phase1():
                 print(f"  ⏭️  跳过(已存在): {name}")
                 continue
 
+            # 验证当前用户是否在群中（搜到的群可能不是自己的）
+            try:
+                get_user_messages(chat_id, page_size=1)
+            except Exception:
+                print(f"  ⏭️  跳过(不在群中): {name}")
+                continue
+
             # 新增记录
             rid = bitable_create({
                 "群名": name,
@@ -102,6 +109,11 @@ def phase1_retry():
         return
     print(f"  需要补拉: {len(pending)} 个群")
     for r in pending:
+        # 先验证是否在群中
+        try:
+            get_user_messages(r["chat_id"], page_size=1)
+        except Exception:
+            continue  # 不在群中，跳过
         print(f"  🔄 {r['group_name']}...", end=" ")
         if invite_bot_to_group(r["chat_id"], BOT_APP_ID):
             bitable_update(r["record_id"], {"是否已拉机器人": True})
