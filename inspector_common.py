@@ -92,30 +92,6 @@ def run(cmd, timeout=120):
     return result.stdout
 
 
-def check_auth():
-    """检查 lark-cli 登录状态，未登录则引导用户扫码授权"""
-    try:
-        output = run("lark-cli auth status", timeout=10)
-        data = extract_json(output)
-        user_id = data.get("identities", {}).get("user", {})
-        if user_id.get("status") == "ready":
-            return
-    except Exception:
-        pass
-
-    print("\n⚠️  尚未登录飞书账号，需要先扫码授权")
-    print("正在启动设备授权流程...\n")
-
-    # 交互式运行，让用户看到二维码/链接
-    result = subprocess.run(
-        "lark-cli auth login --domain im --scope 'im:message.send_as_user'",
-        shell=True, timeout=120
-    )
-    if result.returncode != 0:
-        raise RuntimeError("授权失败，请手动运行: lark-cli auth login")
-    print("✅ 授权成功\n")
-
-
 def extract_json(text):
     start = re.search(r'[\[{]', text)
     if not start:
@@ -139,7 +115,6 @@ def extract_json(text):
 
 def detect_user():
     global USER_OPEN_ID, USER_NAME
-    check_auth()
     output = run("lark-cli auth status", timeout=10)
     data = extract_json(output)
     info = data.get("identities", {}).get("user", {})
