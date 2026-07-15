@@ -9,6 +9,11 @@ scripts = ["inspector_sync.py", "inspector_check.py"]
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
+# 先检查授权
+sys.path.insert(0, base_dir)
+from inspector_common import check_auth
+check_auth()
+
 for script in scripts:
     path = os.path.join(base_dir, script)
     if not os.path.exists(path):
