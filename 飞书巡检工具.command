@@ -17,47 +17,34 @@ echo "  飞书协商群巡检工具"
 echo "=================================="
 echo ""
 
-# ── 1. 安装 lark-cli（直接下载二进制，无需 Homebrew）──
-if ! command -v lark-cli &>/dev/null; then
-    echo -e "${YELLOW}⏳ 正在下载 lark-cli...${NC}"
-
-    # 检测 CPU 架构
-    ARCH="amd64"
-    [ "$(uname -m)" = "arm64" ] && ARCH="arm64"
-
-    LARK_URL="https://github.com/larksuite/cli/releases/download/v1.0.70/lark-cli-1.0.70-darwin-${ARCH}.tar.gz"
-
-    curl -sSL -o /tmp/lark-cli.tar.gz "$LARK_URL" || {
-        echo -e "${RED}❌ 下载失败${NC}"
+# ── 1. 检查 Homebrew ──
+if ! command -v brew &>/dev/null; then
+    echo -e "${YELLOW}⏳ 正在安装 Homebrew...${NC}"
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2>/dev/null || {
+        echo -e "${RED}❌ Homebrew 安装失败，请手动安装:${NC}"
+        echo "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
         read -p "按回车退出"
         exit 1
     }
-
-    tar xzf /tmp/lark-cli.tar.gz -C /tmp 2>/dev/null
-    # 解压出来的二进制在 /tmp/lark-cli 目录下
-    INSTALL_DIR="/usr/local/bin"
-    if [ ! -w "$INSTALL_DIR" ]; then
-        INSTALL_DIR="$HOME/.local/bin"
-        mkdir -p "$INSTALL_DIR"
+    # M 芯片需要额外配置 PATH
+    if [ -f /opt/homebrew/bin/brew ]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
     fi
-
-    cp /tmp/lark-cli-1.0.70-darwin-${ARCH}/lark-cli "$INSTALL_DIR/" 2>/dev/null
-    rm -rf /tmp/lark-cli.tar.gz /tmp/lark-cli-1.0.70-darwin-${ARCH}
-
-    if command -v lark-cli &>/dev/null; then
-        echo -e "${GREEN}✅ lark-cli 安装完成${NC}"
-    elif [ -f "$INSTALL_DIR/lark-cli" ]; then
-        # 刚安装的可能不在当前 PATH 中
-        echo -e "${GREEN}✅ lark-cli 已安装到 $INSTALL_DIR${NC}"
-        export PATH="$INSTALL_DIR:$PATH"
-    else
-        echo -e "${RED}❌ 安装失败${NC}"
-        read -p "按回车退出"
-        exit 1
-    fi
+    echo -e "${GREEN}✅ Homebrew 安装完成${NC}"
 fi
 
-# ── 2. 检查/下载脚本 ──
+# ── 2. 检查 lark-cli ──
+if ! command -v lark-cli &>/dev/null; then
+    echo -e "${YELLOW}⏳ 正在安装 lark-cli...${NC}"
+    brew install lark-cli 2>/dev/null || {
+        echo -e "${RED}❌ lark-cli 安装失败，请手动运行: brew install lark-cli${NC}"
+        read -p "按回车退出"
+        exit 1
+    }
+    echo -e "${GREEN}✅ lark-cli 安装完成${NC}"
+fi
+
+# ── 3. 检查/下载脚本 ──
 mkdir -p "$BASE_DIR" "$LOG_DIR"
 cd "$BASE_DIR"
 
